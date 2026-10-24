@@ -104,6 +104,9 @@ class Client:
                           {"indices": indices, "confirm_uncertain": confirm_uncertain},
                           {"Idempotency-Key": idempotency_key or uuid.uuid4().hex})
 
+    def acknowledge(self, job_id, indices):
+        return self._json("/v1/jobs/" + quote(job_id, safe="") + "/ack", "POST", {"indices": indices})
+
     def download(self, job_id, item, directory):
         root = Path(directory).expanduser()
         root.mkdir(parents=True, exist_ok=True)
@@ -151,6 +154,8 @@ class Client:
             else:
                 path = self.download(job_id, item, directory)
             results.append({"index": item["index"], "prompt_id": item["id"], "path": str(path)})
+        if results:
+            self.acknowledge(job_id, [item["index"] for item in results])
         return job, results
 
     def wait_and_download(self, job_id, directory=None, interval=1, timeout=86400):

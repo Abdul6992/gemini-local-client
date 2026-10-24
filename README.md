@@ -87,11 +87,25 @@ Exit code 2 means the final job was partial, failed, cancelled or needs review.
 
 - Prompt indices are **1-based**. Results may finish out of order.
 - Results are saved on the generation PC in a unique directory per job.
+- Open profile contexts are retained between jobs. A profile is refreshed after
+  the requesting client confirms every completed image from its batch. The SDK
+  sends this acknowledgement after SHA-256 verification.
+- The API reports `completed_in_cycle` and `cooldown_until` for open profiles.
+  At 400 completed images, a profile rests for three hours before its count resets.
 - A same-PC client can reuse the existing local file without downloading a duplicate.
 - A LAN client defaults to `~/Downloads/GeminiCreatorCore/JOB_ID/`.
+- Each completed prompt includes an authenticated `download_url` served directly
+  by the desktop API over the local network. The generator blob is captured once
+  into the desktop's saved file; the API streams that file without uploading it
+  to GitHub, a cloud service, or another host. A browser `blob:` URL itself only
+  works inside its owning browser session and cannot be used on another device.
 - Pass `directory=` to `wait_and_download` to select another destination.
 - Re-run with the same job ID after a disconnect. Files already matching their
   SHA-256 hash are skipped; partial transfers use HTTP Range.
+- Custom clients should `POST /v1/jobs/{job_id}/ack` with JSON
+  `{"indices":[1,2]}` after fully verifying downloads. This releases and
+  refreshes the profile page. A 15-minute safety timeout refreshes the page if
+  a client disconnects without acknowledging.
 - Keep the original job ID. Submitting a new job ID intentionally generates again.
 - Use a stable `Idempotency-Key` when retrying a submission whose response was lost.
   Reusing that key with changed prompts/ratio returns HTTP 409.
@@ -112,6 +126,7 @@ POST bodies use `Content-Type: application/json`.
 | GET | /v1/jobs/{job_id} | Per-prompt status and completed indices |
 | GET | /v1/jobs/{job_id}/events | SSE; reconnect with Last-Event-ID |
 | GET | /v1/jobs/{job_id}/images/{index} | Authenticated image, supports Range |
+| POST | /v1/jobs/{job_id}/ack | Confirm checksum-verified image indices |
 | POST | /v1/jobs/{job_id}/cancel | Stop unsubmitted work; keep completed files |
 | POST | /v1/jobs/{job_id}/retry | New job for failed/cancelled selected prompts |
 | GET | /v1/openapi.json | Authenticated API schema |
